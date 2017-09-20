@@ -5,34 +5,34 @@ from datetime import date
 
 """
 dataset split:
-                      (date_received)                              
+                      (date_received)
            dateset3: 20160701~20160731 (113640),features3 from 20160315~20160630  (off_test)
-           dateset2: 20160515~20160615 (258446),features2 from 20160201~20160514  
-           dateset1: 20160414~20160514 (138303),features1 from 20160101~20160413        
+           dateset2: 20160515~20160615 (258446),features2 from 20160201~20160514
+           dateset1: 20160414~20160514 (138303),features1 from 20160101~20160413
 
 
 
-1.merchant related: 
+1.merchant related:
       sales_use_coupon. total_coupon
       transfer_rate = sales_use_coupon/total_coupon.
-      merchant_avg_distance,merchant_min_distance,merchant_max_distance of those use coupon 
-      total_sales.  coupon_rate = sales_use_coupon/total_sales.  
-       
-2.coupon related: 
+      merchant_avg_distance,merchant_min_distance,merchant_max_distance of those use coupon
+      total_sales.  coupon_rate = sales_use_coupon/total_sales.
+
+2.coupon related:
       discount_rate. discount_man. discount_jian. is_man_jian
       day_of_week,day_of_month. (date_received)
-      
-3.user related: 
-      distance. 
-      user_avg_distance, user_min_distance,user_max_distance. 
+
+3.user related:
+      distance.
+      user_avg_distance, user_min_distance,user_max_distance.
       buy_use_coupon. buy_total. coupon_received.
-      buy_use_coupon/coupon_received. 
-      avg_diff_date_datereceived. min_diff_date_datereceived. max_diff_date_datereceived.  
-      count_merchant.  
+      buy_use_coupon/coupon_received.
+      avg_diff_date_datereceived. min_diff_date_datereceived. max_diff_date_datereceived.
+      count_merchant.
 
 4.user_merchant:
       times_user_buy_merchant_before.
-     
+
 
 5. other feature:
       this_month_user_receive_all_coupon_count
@@ -46,13 +46,13 @@ dataset split:
 
 
 #1754884 record,1053282 with coupon_id,9738 coupon. date_received:20160101~20160615,date:20160101~20160630, 539438 users, 8415 merchants
-off_train = pd.read_csv('data/ccf_offline_stage1_train.csv',header=None)
+off_train = pd.read_csv('data/ccf_offline_stage1_train.csv',header=0,low_memory=False)
 off_train.columns = ['user_id','merchant_id','coupon_id','discount_rate','distance','date_received','date']
 #2050 coupon_id. date_received:20160701~20160731, 76309 users(76307 in trainset, 35965 in online_trainset), 1559 merchants(1558 in trainset)
-off_test = pd.read_csv('data/ccf_offline_stage1_test_revised.csv',header=None)
+off_test = pd.read_csv('data/ccf_offline_stage1_test_revised.csv',header=0,low_memory=False)
 off_test.columns = ['user_id','merchant_id','coupon_id','discount_rate','distance','date_received']
 #11429826 record(872357 with coupon_id),762858 user(267448 in off_train)
-on_train = pd.read_csv('data/ccf_online_stage1_train.csv',header=None)
+on_train = pd.read_csv('data/ccf_online_stage1_train.csv',header=0,low_memory=False)
 on_train.columns = ['user_id','merchant_id','action','coupon_id','discount_rate','date_received','date']
 
 
@@ -77,15 +77,15 @@ feature1 = off_train[(off_train.date>='20160101')&(off_train.date<='20160413')|(
 """
 
 #for dataset3
-t = dataset3[['user_id']]
+t = dataset3[['user_id']].copy()
 t['this_month_user_receive_all_coupon_count'] = 1
 t = t.groupby('user_id').agg('sum').reset_index()
 
-t1 = dataset3[['user_id','coupon_id']]
+t1 = dataset3[['user_id','coupon_id']].copy()
 t1['this_month_user_receive_same_coupon_count'] = 1
 t1 = t1.groupby(['user_id','coupon_id']).agg('sum').reset_index()
 
-t2 = dataset3[['user_id','coupon_id','date_received']]
+t2 = dataset3[['user_id','coupon_id','date_received']].copy()
 t2.date_received = t2.date_received.astype('str')
 t2 = t2.groupby(['user_id','coupon_id'])['date_received'].agg(lambda x:':'.join(x)).reset_index()
 t2['receive_number'] = t2.date_received.apply(lambda s:len(s.split(':')))
@@ -94,7 +94,8 @@ t2['max_date_received'] = t2.date_received.apply(lambda s:max([int(d) for d in s
 t2['min_date_received'] = t2.date_received.apply(lambda s:min([int(d) for d in s.split(':')]))
 t2 = t2[['user_id','coupon_id','max_date_received','min_date_received']]
 
-t3 = dataset3[['user_id','coupon_id','date_received']]
+t3 = dataset3[['user_id','coupon_id','date_received']].copy()
+print t3.head(5)
 t3 = pd.merge(t3,t2,on=['user_id','coupon_id'],how='left')
 t3['this_month_user_receive_same_coupon_lastone'] = t3.max_date_received - t3.date_received
 t3['this_month_user_receive_same_coupon_firstone'] = t3.date_received - t3.min_date_received
@@ -105,20 +106,20 @@ def is_firstlastone(x):
         return 0
     else:
         return -1 #those only receive once
-        
+
 t3.this_month_user_receive_same_coupon_lastone = t3.this_month_user_receive_same_coupon_lastone.apply(is_firstlastone)
 t3.this_month_user_receive_same_coupon_firstone = t3.this_month_user_receive_same_coupon_firstone.apply(is_firstlastone)
 t3 = t3[['user_id','coupon_id','date_received','this_month_user_receive_same_coupon_lastone','this_month_user_receive_same_coupon_firstone']]
 
-t4 = dataset3[['user_id','date_received']]
+t4 = dataset3[['user_id','date_received']].copy()
 t4['this_day_user_receive_all_coupon_count'] = 1
 t4 = t4.groupby(['user_id','date_received']).agg('sum').reset_index()
 
-t5 = dataset3[['user_id','coupon_id','date_received']]
+t5 = dataset3[['user_id','coupon_id','date_received']].copy()
 t5['this_day_user_receive_same_coupon_count'] = 1
 t5 = t5.groupby(['user_id','coupon_id','date_received']).agg('sum').reset_index()
 
-t6 = dataset3[['user_id','coupon_id','date_received']]
+t6 = dataset3[['user_id','coupon_id','date_received']].copy()
 t6.date_received = t6.date_received.astype('str')
 t6 = t6.groupby(['user_id','coupon_id'])['date_received'].agg(lambda x:':'.join(x)).reset_index()
 t6.rename(columns={'date_received':'dates'},inplace=True)
@@ -135,7 +136,7 @@ def get_day_gap_before(s):
         return -1
     else:
         return min(gaps)
-        
+
 def get_day_gap_after(s):
     date_received,dates = s.split('-')
     dates = dates.split(':')
@@ -148,7 +149,7 @@ def get_day_gap_after(s):
         return -1
     else:
         return min(gaps)
-    
+
 
 t7 = dataset3[['user_id','coupon_id','date_received']]
 t7 = pd.merge(t7,t6,on=['user_id','coupon_id'],how='left')
@@ -196,7 +197,7 @@ def is_firstlastone(x):
         return 0
     else:
         return -1 #those only receive once
-        
+
 t3.this_month_user_receive_same_coupon_lastone = t3.this_month_user_receive_same_coupon_lastone.apply(is_firstlastone)
 t3.this_month_user_receive_same_coupon_firstone = t3.this_month_user_receive_same_coupon_firstone.apply(is_firstlastone)
 t3 = t3[['user_id','coupon_id','date_received','this_month_user_receive_same_coupon_lastone','this_month_user_receive_same_coupon_firstone']]
@@ -226,7 +227,7 @@ def get_day_gap_before(s):
         return -1
     else:
         return min(gaps)
-        
+
 def get_day_gap_after(s):
     date_received,dates = s.split('-')
     dates = dates.split(':')
@@ -239,7 +240,7 @@ def get_day_gap_after(s):
         return -1
     else:
         return min(gaps)
-    
+
 
 t7 = dataset2[['user_id','coupon_id','date_received']]
 t7 = pd.merge(t7,t6,on=['user_id','coupon_id'],how='left')
@@ -287,7 +288,7 @@ def is_firstlastone(x):
         return 0
     else:
         return -1 #those only receive once
-        
+
 t3.this_month_user_receive_same_coupon_lastone = t3.this_month_user_receive_same_coupon_lastone.apply(is_firstlastone)
 t3.this_month_user_receive_same_coupon_firstone = t3.this_month_user_receive_same_coupon_firstone.apply(is_firstlastone)
 t3 = t3[['user_id','coupon_id','date_received','this_month_user_receive_same_coupon_lastone','this_month_user_receive_same_coupon_firstone']]
@@ -317,7 +318,7 @@ def get_day_gap_before(s):
         return -1
     else:
         return min(gaps)
-        
+
 def get_day_gap_after(s):
     date_received,dates = s.split('-')
     dates = dates.split(':')
@@ -330,7 +331,7 @@ def get_day_gap_after(s):
         return -1
     else:
         return min(gaps)
-    
+
 
 t7 = dataset1[['user_id','coupon_id','date_received']]
 t7 = pd.merge(t7,t6,on=['user_id','coupon_id'],how='left')
@@ -354,7 +355,7 @@ print other_feature1.shape
 
 ############# coupon related feature   #############
 """
-2.coupon related: 
+2.coupon related:
       discount_rate. discount_man. discount_jian. is_man_jian
       day_of_week,day_of_month. (date_received)
 """
@@ -373,7 +374,7 @@ def get_discount_man(s):
         return 'null'
     else:
         return int(s[0])
-        
+
 def get_discount_jian(s):
     s =str(s)
     s = s.split(':')
@@ -434,10 +435,10 @@ dataset1.to_csv('data/coupon1_feature.csv',index=None)
 
 ############# merchant related feature   #############
 """
-1.merchant related: 
+1.merchant related:
       total_sales. sales_use_coupon.  total_coupon
-      coupon_rate = sales_use_coupon/total_sales.  
-      transfer_rate = sales_use_coupon/total_coupon. 
+      coupon_rate = sales_use_coupon/total_sales.
+      transfer_rate = sales_use_coupon/total_coupon.
       merchant_avg_distance,merchant_min_distance,merchant_max_distance of those use coupon
 
 """
@@ -590,14 +591,14 @@ merchant1_feature.to_csv('data/merchant1_feature.csv',index=None)
 
 ############# user related feature   #############
 """
-3.user related: 
-      count_merchant. 
-      user_avg_distance, user_min_distance,user_max_distance. 
+3.user related:
+      count_merchant.
+      user_avg_distance, user_min_distance,user_max_distance.
       buy_use_coupon. buy_total. coupon_received.
-      buy_use_coupon/coupon_received. 
+      buy_use_coupon/coupon_received.
       buy_use_coupon/buy_total
       user_date_datereceived_gap
-      
+
 
 """
 
@@ -827,7 +828,7 @@ user1_feature.to_csv('data/user1_feature.csv',index=None)
 
 """
 4.user_merchant:
-      times_user_buy_merchant_before. 
+      times_user_buy_merchant_before.
 """
 #for dataset3
 all_user_merchant = feature3[['user_id','merchant_id']]
@@ -1058,3 +1059,5 @@ dataset1.label = dataset1.label.apply(get_label)
 dataset1.drop(['merchant_id','day_of_week','date','date_received','coupon_id','coupon_count'],axis=1,inplace=True)
 dataset1 = dataset1.replace('null',np.nan)
 dataset1.to_csv('data/dataset1.csv',index=None)
+
+
